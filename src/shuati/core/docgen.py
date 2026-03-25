@@ -59,6 +59,9 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                     image_marks[key] = (seq, "答案")
 
         in_answer_section = False
+        text_q_seen = 0
+        img_q_counter = 1
+        
         for block in blocks:
             ctype = block.get("content_type")
             if ctype == 11:
@@ -68,6 +71,7 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                         in_answer_section = True
                     first_line = next((s.strip() for s in text.splitlines() if s.strip()), "")
                     if re.match(r"^\d+[、\.\)]", first_line):
+                        text_q_seen += 1
                         in_answer_section = False
                     p = doc.add_paragraph(text)
                     p.paragraph_format.space_after = Pt(6)
@@ -127,13 +131,28 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
 
                     p = doc.add_paragraph()
                     
-                    if preprocess_images and seq > 0:
-                        r = p.add_run(f"{seq}、")
-                        r.font.size = Pt(12)
+                    if preprocess_images and seq > 0 and text_q_seen == 0:
+                        r1 = p.add_run(f"{img_q_counter}、")
+                        r1.font.size = Pt(12)
+                        img_q_counter += 1
+                        
                         r2 = p.add_run()
                         if image_to_insert != local:
                             # Tightly cropped images scale nicely to 1.2cm height
-                            r2.add_picture(image_to_insert, height=Cm(1.2))
+                            cm_height = 1.2
+                            try:
+                                from PIL import Image
+                                with Image.open(image_to_insert) as check_im:
+                                    cm_width = 1.2 * check_im.width / check_im.height
+                            except:
+                                cm_width = 14.0
+                                
+                            max_cm_width = 14.0
+                            if cm_width > max_cm_width:
+                                cm_height = cm_height * (max_cm_width / cm_width)
+                                cm_width = max_cm_width
+                                
+                            r2.add_picture(image_to_insert, width=Cm(cm_width), height=Cm(cm_height))
                         else:
                             r2.add_picture(image_to_insert)
                     else:
@@ -235,7 +254,7 @@ def _docx_to_pdf(docx_path: str, pdf_path: str) -> str:
             break-before: auto;
         }
         p { margin-bottom: 6pt; text-align: justify; }
-        img { max-width: 100%; height: auto; }
+        img { max-width: 100%; height: auto; vertical-align: middle; }
         .center { text-align: center; }
         </style>
         """
