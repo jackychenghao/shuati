@@ -17,7 +17,7 @@ EXPORT_IMAGE_MAX_WIDTH = Cm(10.5)
 EXPORT_IMAGE_MAX_HEIGHT = Cm(8.5)
 
 
-def generate_word(start_date: str, end_date: str, output_path: str = None, source_thread_ids: list[str] | None = None) -> str:
+def generate_word(start_date: str, end_date: str, output_path: str = None, source_thread_ids: list[str] | None = None, preprocess_images: bool = True) -> str:
     threads = get_threads_by_date_range(start_date, end_date)
     if source_thread_ids:
         picked = set(source_thread_ids)
@@ -87,8 +87,8 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                     ):
                         answer_by_ocr = True
                     looks_like_question = bool(meta.get("looks_like_question")) if isinstance(meta, dict) else False
-                if answer_by_mark:
-                    # 明确标记为答案图片（来自 questions.answers）才跳过
+                if answer_by_mark or answer_by_ocr:
+                    # 明确标记为答案图片（来自 questions.answers）或被 OCR 认定为答案，则跳过
                     in_answer_section = True
                     continue
                 # 只要图片被标记为配图（或没有明确标记为答案），就显示
@@ -97,15 +97,59 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                     # 只有在答案区域内的未分类图片才跳过
                     continue
                 if local and os.path.exists(local):
-                    shape = doc.add_picture(local)
-                    if shape.width > LARGE_IMAGE_TRIGGER_WIDTH or shape.height > LARGE_IMAGE_TRIGGER_HEIGHT:
-                        shape.width = int(shape.width * 0.5)
-                        shape.height = int(shape.height * 0.5)
-                    if shape.width > EXPORT_IMAGE_MAX_WIDTH or shape.height > EXPORT_IMAGE_MAX_HEIGHT:
-                        ratio = min(float(EXPORT_IMAGE_MAX_WIDTH) / float(shape.width), float(EXPORT_IMAGE_MAX_HEIGHT) / float(shape.height))
-                        shape.width = int(float(shape.width) * ratio)
-                        shape.height = int(float(shape.height) * ratio)
-                doc.add_paragraph()
+                    image_to_insert = local
+                    temp_files_to_clean = []
+                    
+                    if preprocess_images and seq > 0:
+                        from PIL import Image, ImageChops
+                        try:
+                            im = Image.open(local).convert("RGB")
+                            bg = Image.new(im.mode, im.size, (255, 255, 255))
+                            diff = ImageChops.difference(im, bg)
+                            diff = ImageChops.add(diff, diff, 2.0, -100)
+                            bbox = diff.getbbox()
+                            if bbox:
+                                padding = 10
+                                padded_bbox = (
+                                    max(0, bbox[0] - padding),
+                                    max(0, bbox[1] - padding),
+                                    min(im.width, bbox[2] + padding),
+                                    min(im.height, bbox[3] + padding)
+                                )
+                                cropped = im.crop(padded_bbox)
+                                import tempfile
+                                tf = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+                                cropped.save(tf.name)
+                                temp_files_to_clean.append(tf.name)
+                                image_to_insert = tf.name
+                        except Exception as e:
+                            print(f"[Doc] 图片裁剪失败 {local}: {e}")
+
+                    p = doc.add_paragraph()
+                    
+                    if preprocess_images and seq > 0:
+                        r = p.add_run(f"{seq}、")
+                        r.font.size = Pt(12)
+                        if image_to_insert != local:
+                            # Tightly cropped images scale nicely to 1.2cm height
+                            r.add_picture(image_to_insert, height=Cm(1.2))
+                        else:
+                            r.add_picture(image_to_insert)
+                    else:
+                        shape = p.add_run().add_picture(image_to_insert)
+                        if shape.width > LARGE_IMAGE_TRIGGER_WIDTH or shape.height > LARGE_IMAGE_TRIGGER_HEIGHT:
+                            shape.width = int(shape.width * 0.5)
+                            shape.height = int(shape.height * 0.5)
+                        if shape.width > EXPORT_IMAGE_MAX_WIDTH or shape.height > EXPORT_IMAGE_MAX_HEIGHT:
+                            ratio = min(float(EXPORT_IMAGE_MAX_WIDTH) / float(shape.width), float(EXPORT_IMAGE_MAX_HEIGHT) / float(shape.height))
+                            shape.width = int(float(shape.width) * ratio)
+                            shape.height = int(float(shape.height) * ratio)
+                            
+                    for tf in temp_files_to_clean:
+                        try:
+                            os.remove(tf)
+                        except Exception:
+                            pass
 
         doc.add_page_break()
 
@@ -230,7 +274,7 @@ def _docx_to_pdf(docx_path: str, pdf_path: str) -> str:
     return pdf_path
 
 
-def generate_pdf(start_date: str, end_date: str, output_path: str = None, source_thread_ids: list[str] | None = None) -> str:
+def generate_pdf(start_date: str, end_date: str, output_path: str = None, source_thread_ids: list[str] | None = None, preprocess_images: bool = True) -> str:
     """Generate PDF document from questions."""
     final_pdf_path = output_path
     if output_path and output_path.lower().endswith(".pdf"):
@@ -239,7 +283,7 @@ def generate_pdf(start_date: str, end_date: str, output_path: str = None, source
         docx_output_path = output_path
         final_pdf_path = None
 
-    docx_path = generate_word(start_date, end_date, docx_output_path, source_thread_ids)
+    docx_path = generate_word(start_date, end_date, docx_output_path, source_thread_ids, preprocess_images)
 
     if final_pdf_path is None:
         final_pdf_path = docx_path.replace(".docx", ".pdf")

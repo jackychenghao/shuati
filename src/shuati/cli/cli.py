@@ -36,13 +36,14 @@ def _make_invoke_with_error_handling(cmd):
 
 @click.group(context_settings=dict(help_option_names=["-h", "--help"]))
 @click.version_option(version=__version__, prog_name="shuati")
-@click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging")
+@click.option("-v", "--verbose", is_flag=True, help="开启详细日志输出")
 @click.pass_context
 def cli(ctx, verbose):
     """
-    shuati-agent: CLI tool for collecting daily check-in questions from Jielong Manager.
+    shuati-agent: 接龙管家每日打卡题采集终端工具。
 
-    Run 'shuati <command> --help' for details on each command.
+    你可以运行 'shuati <指令> --help' 来查看任意指令的功能详情。
+    或者使用 'shuati help' 罗列所有可用指令。
     """
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
@@ -67,6 +68,14 @@ for cmd in [
 ]:
     _make_invoke_with_error_handling(cmd)
     cli.add_command(cmd)
+
+@click.command(name="help")
+@click.pass_context
+def _help_cmd(ctx):
+    """显示本帮助信息并退出"""
+    click.echo(ctx.parent.get_help())
+
+cli.add_command(_help_cmd)
 
 
 if __name__ == "__main__":

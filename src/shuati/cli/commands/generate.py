@@ -12,15 +12,16 @@ console = Console()
 
 
 @click.command(name="generate")
-@click.option("--start", default="", help="Start date (YYYY-MM-DD)")
-@click.option("--end", default="", help="End date (YYYY-MM-DD)")
-@click.option("--threads", "thread_ids", multiple=True, help="Specific thread IDs to include")
-@click.option("--output", "-o", "output_path", default="", help="Output file path")
-@click.option("--format", "output_format", default="docx", type=click.Choice(["docx", "pdf"]), help="Output format")
+@click.option("--start", default="", help="起始日期 (YYYY-MM-DD)")
+@click.option("--end", default="", help="结束日期 (YYYY-MM-DD)")
+@click.option("--threads", "thread_ids", multiple=True, help="要包含的特定主题 ID 列表")
+@click.option("--output", "-o", "output_path", default="", help="输出文件路径")
+@click.option("--format", "output_format", default="docx", type=click.Choice(["docx", "pdf"]), help="输出格式 (docx 或 pdf)")
+@click.option("--preprocess-images/--no-preprocess-images", default=True, help="是否自动裁剪图片题目四周的留白并缩放排版")
 @click.pass_context
 @add_output_options
-def generate(ctx, start, end, thread_ids, output_path, output_format, yaml, json):
-    """Generate document from synced questions."""
+def generate(ctx, start, end, thread_ids, output_path, output_format, preprocess_images, yaml, json):
+    """根据已同步的题库内容生成 Word 或 PDF 文档。"""
     from shuati.core.database import get_threads_by_date_range, get_threads_by_ids
     from shuati.core.docgen import generate_word, generate_pdf
 
@@ -62,6 +63,7 @@ def generate(ctx, start, end, thread_ids, output_path, output_format, yaml, json
                 end_date=end or "9999-12-31",
                 output_path=output_path or None,
                 source_thread_ids=[t["thread_id"] for t in threads] if thread_ids else None,
+                preprocess_images=preprocess_images,
             )
         else:
             out_path = generate_word(
@@ -69,6 +71,7 @@ def generate(ctx, start, end, thread_ids, output_path, output_format, yaml, json
                 end_date=end or "9999-12-31",
                 output_path=output_path or None,
                 source_thread_ids=[t["thread_id"] for t in threads] if thread_ids else None,
+                preprocess_images=preprocess_images,
             )
 
         mode = get_ctx_output_mode(ctx)
