@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shuati-agent"
+version = "1.0.0"
+description = "CLI + Web tool for collecting daily check-in questions from Jielong Manager"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "flask>=3.0.0",
+    "requests>=2.31.0",
+    "python-docx>=1.1.0",
+    "schedule>=1.2.0",
+    "playwright>=1.40.0",
+    "ocrmac>=1.0.1",
+    "click>=8.1.0",
+    "pyyaml>=6.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-click>=1.0.0",
+]
+
+[project.scripts]
+shuati = "shuati.cli.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["shuati*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>打卡题管理工具</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f4f5f7;
+    color: #1a1a1a;
+  }
+  /* ── 顶部导航 ── */
+  .navbar {
+    background: white;
+    border-bottom: 1px solid #eee;
+    padding: 0 32px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .navbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: #888;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #22a855; display: inline-block; }
+
+  /* ── 主体布局 ── */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 28px 24px;
+  }
+
+  /* ── 状态卡片 ── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px 24px;
+    border: 1px solid #eee;
+  }
+  .stat-label { font-size: 12px; color: #888; margin-bottom: 6px; }
+  .stat-value { font-size: 28px; font-weight: 600; color: #1a1a1a; }
+  .stat-sub { font-size: 12px; color: #aaa; margin-top: 4px; }
+
+  /* ── 操作区 ── */
+  .action-bar {
+    background: white;
+    border-radius: 12px;
+    padding: 20px 24px;
+    border: 1px solid #eee;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 13px; color: #555; font-weight: 500; }
+  .field input[type=date] {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+  }
+  .field input[type=date]:focus { border-color: #f0a500; }
+  .field.checkbox { flex-direction: row; align-items: center; gap: 8px; padding-bottom: 9px; }
+  .field.checkbox label { margin: 0; font-size: 13px; color: #444; cursor: pointer; }
+  .btn {
+    padding: 9px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .btn-primary { background: #f0a500; color: white; }
+  .btn-primary:hover { background: #d4920a; }
+  .btn-primary:disabled { background: #ddd; cursor: not-allowed; }
+  .btn-secondary { background: #f0f0f0; color: #444; }
+  .btn-secondary:hover { background: #e0e0e0; }
+  .btn-danger { background: #fff0f0; color: #e53e3e; border: 1px solid #fcc; }
+  .btn-danger:hover { background: #ffe0e0; }
+
+  /* ── 题库列表 ── */
+  .section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .thread-list {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #eee;
+    overflow: hidden;
+  }
+  .thread-item {
+    display: grid;
+    grid-template-columns: 36px 1fr 120px 80px 100px;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid #f5f5f5;
+    transition: background 0.1s;
+  }
+  .thread-item:last-child { border-bottom: none; }
+  .thread-item:hover { background: #fafafa; }
+  .thread-item.header {
+    background: #fafafa;
+    cursor: default;
+    font-size: 12px;
+    color: #888;
+    font-weight: 500;
+    padding: 10px 20px;
+  }
+  .thread-title { font-size: 14px; font-weight: 500; }
+  .thread-date { font-size: 13px; color: #888; }
+  .thread-author { font-size: 12px; color: #aaa; }
+  .source-check { width: 16px; height: 16px; cursor: pointer; }
+  .source-actions { display:flex; gap:8px; align-items:center; }
+  .mini-btn {
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #666;
+    border-radius: 6px;
+    font-size: 12px;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  .mini-btn-primary {
+    background: #f0a500;
+    border-color: #f0a500;
+    color: #fff;
+  }
+  .mini-btn-primary:hover { background: #d4920a; border-color: #d4920a; }
+  .mini-btn-primary:disabled { background: #ddd; border-color: #ddd; cursor: not-allowed; }
+  .mini-btn-danger {
+    background: #fff0f0;
+    border-color: #fcc;
+    color: #e53e3e;
+  }
+  .mini-btn-danger:hover { background: #ffe0e0; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .badge-text { background: #e8f5e9; color: #2e7d32; }
+  .badge-img { background: #fff3e0; color: #e65100; }
+  .badge-mix { background: #ede7f6; color: #4527a0; }
+  .thread-blocks { font-size: 12px; color: #aaa; }
+  .pagination {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .page-info { font-size: 12px; color: #777; min-width: 120px; text-align: right; }
+
+  /* ── 弹窗 ── */
+  .modal-bg {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-bg.show { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 16px;
+    padding: 28px;
+    width: 480px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  .modal h2 { font-size: 16px; margin-bottom: 16px; }
+  .block-text {
+    background: #fafafa;
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 14px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    margin-bottom: 12px;
+    border: 1px solid #eee;
+  }
+  .block-img { 
+    max-width: 100%; 
+    max-height: 400px;
+    object-fit: contain;
+    border-radius: 8px; 
+    margin-bottom: 12px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .block-img:active {
+    opacity: 0.8;
+  }
+  .toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    display: none;
+    z-index: 999;
+  }
+  .empty {
+    text-align: center;
+    padding: 48px;
+    color: #aaa;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="navbar-brand">📚 打卡题管理工具</div>
+  <div class="navbar-right">
+    <span><span class="dot"></span> 已登录</span>
+    {% if last_sync %}
+      <span>上次同步：{{ last_sync.synced_at[:16].replace('T',' ') }}</span>
+    {% endif %}
+    <button class="btn btn-secondary" onclick="manualSync()" id="syncBtn">立即同步</button>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- 统计卡片 -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-label">题库总数</div>
+      <div class="stat-value">{{ count }}</div>
+      <div class="stat-sub">条打卡题</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">上次同步</div>
+      <div class="stat-value" style="font-size:16px;padding-top:6px">
+        {% if last_sync %}{{ last_sync.synced_at[:10] }}{% else %}—{% endif %}
+      </div>
+      <div class="stat-sub">
+        {% if last_sync %}新增 {{ last_sync.new_count }} 条{% endif %}
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">自动同步</div>
+      <div class="stat-value" style="font-size:16px;padding-top:6px">每天 07:00</div>
+      <div class="stat-sub">后台自动运行</div>
+    </div>
+  </div>
+
+  <!-- 生成文档 -->
+  <div class="action-bar">
+    <div class="field">
+      <label>开始日期</label>
+      <input type="date" id="startDate" onchange="loadThreads()">
+    </div>
+    <div class="field">
+      <label>结束日期</label>
+      <input type="date" id="endDate" onchange="loadThreads()">
+    </div>
+    <div class="field checkbox">
+      <input type="checkbox" id="imgAsDiagramSwitch" {% if use_non_answer_images_as_diagrams %}checked{% endif %} onchange="saveImageMappingSetting()">
+      <label for="imgAsDiagramSwitch">启用非解答图片判题配图</label>
+    </div>
+  </div>
+
+  <!-- 题库列表 -->
+  <div class="section-title">
+    <span id="threadCountLabel">题库（{{ count }} 条）</span>
+    <div class="source-actions">
+      <button class="mini-btn" type="button" onclick="selectAllSources()">全选</button>
+      <button class="mini-btn" type="button" onclick="clearSources()">清空</button>
+      <button class="mini-btn mini-btn-danger" type="button" onclick="deleteSelectedSources()" id="bulkDeleteBtn">删除选中</button>
+      <button class="mini-btn mini-btn-primary" type="button" onclick="generateDoc()" id="genBtn">生成 Word 文档</button>
+    </div>
+  </div>
+
+  <div class="thread-list">
+    <div class="thread-item header">
+      <span><input type="checkbox" class="source-check" id="selectAllSwitch" checked onchange="toggleAllByHeader(this.checked)"></span>
+      <span>标题</span>
+      <span>日期</span>
+      <span>发布人</span>
+      <span>内容</span>
+    </div>
+    <div id="threadRows">
+      {% if threads %}
+        {% for t in threads %}
+        <div class="thread-item">
+          <span><input type="checkbox" class="source-check source-selector" data-thread-id="{{ t.thread_id }}" checked onchange="syncSelectAllState()"></span>
+          <span class="thread-title" onclick="showDetail('{{ t.thread_id }}', '{{ t.subject }}')" style="cursor:pointer">{{ t.subject }}</span>
+          <span class="thread-date">{{ t.date_str }}</span>
+          <span class="thread-author">{{ t.author or '—' }}</span>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+             <span class="thread-blocks" onclick="showDetail('{{ t.thread_id }}', '{{ t.subject }}')" style="cursor:pointer">查看</span>
+             <span class="thread-blocks" onclick="confirmDelete(event, '{{ t.thread_id }}', '{{ t.subject }}')" style="cursor:pointer;color:#e53e3e">删除</span>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty">
+          暂无题目。请先在微信群中收藏接龙题，然后点击"立即同步"。
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="pagination">
+    <button class="mini-btn" type="button" id="prevPageBtn" onclick="changePage(-1)">上一页</button>
+    <span class="page-info" id="pageInfo">第 1 / 1 页</span>
+    <button class="mini-btn" type="button" id="nextPageBtn" onclick="changePage(1)">下一页</button>
+  </div>
+
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal-bg" id="modalBg" onclick="closeModal(event)">
+  <div class="modal">
+    <h2 id="modalTitle"></h2>
+    <div id="modalBody"></div>
+    <div id="modalFooter" style="text-align:right; margin-top:20px; display:none">
+       <button class="btn btn-secondary" onclick="document.getElementById('modalBg').classList.remove('show')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+document.getElementById('startDate').value = '';
+document.getElementById('endDate').value = '';
+let currentPage = 1;
+const pageSize = 15;
+loadThreads(1);
+let pendingBulkDeleteIds = [];
+
+function escapeHtml(s) {
+  return String(s || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+async function loadThreads(page = 1) {
+  const start = document.getElementById('startDate').value;
+  const end = document.getElementById('endDate').value;
+  if (start && end && start > end) {
+    showToast('开始日期不能晚于结束日期');
+    return;
+  }
+  try {
+    currentPage = page;
+    const params = new URLSearchParams();
+    params.set('page', String(currentPage));
+    params.set('page_size', String(pageSize));
+    if (start) params.set('start', start);
+    if (end) params.set('end', end);
+    const resp = await fetch(`/api/threads?${params.toString()}`);
+    const data = await resp.json();
+    renderThreadRows(data.items || [], data.total || 0, data.total_pages || 1);
+  } catch (e) {
+    showToast('列表加载失败：' + e.message);
+  }
+}
+
+function selectAllSources() {
+  document.querySelectorAll('.source-selector').forEach(el => el.checked = true);
+  syncSelectAllState();
+}
+
+function clearSources() {
+  document.querySelectorAll('.source-selector').forEach(el => el.checked = false);
+  syncSelectAllState();
+}
+
+function toggleAllByHeader(checked) {
+  document.querySelectorAll('.source-selector').forEach(el => el.checked = checked);
+}
+
+function syncSelectAllState() {
+  const all = document.querySelectorAll('.source-selector');
+  const checked = document.querySelectorAll('.source-selector:checked');
+  const head = document.getElementById('selectAllSwitch');
+  head.checked = all.length > 0 && all.length === checked.length;
+}
+
+function renderThreadRows(list, total, totalPages) {
+  const wrap = document.getElementById('threadRows');
+  document.getElementById('threadCountLabel').textContent = `题库（${total} 条）`;
+  const safeTotalPages = Math.max(1, totalPages || 1);
+  if (currentPage > safeTotalPages) {
+    currentPage = safeTotalPages;
+  }
+  document.getElementById('pageInfo').textContent = `第 ${currentPage} / ${safeTotalPages} 页`;
+  document.getElementById('prevPageBtn').disabled = currentPage <= 1;
+  document.getElementById('nextPageBtn').disabled = currentPage >= safeTotalPages;
+  if (!list.length) {
+    wrap.innerHTML = `<div class="empty">暂无题目。请先在微信群中收藏接龙题，然后点击"立即同步"。</div>`;
+    syncSelectAllState();
+    return;
+  }
+  wrap.innerHTML = list.map(t => `
+    <div class="thread-item">
+      <span><input type="checkbox" class="source-check source-selector" data-thread-id="${escapeHtml(t.thread_id)}" checked onchange="syncSelectAllState()"></span>
+      <span class="thread-title" onclick="showDetail('${escapeHtml(t.thread_id)}', '${escapeHtml(t.subject || '')}')" style="cursor:pointer">${escapeHtml(t.subject || '')}</span>
+      <span class="thread-date">${escapeHtml(t.date_str || '—')}</span>
+      <span class="thread-author">${escapeHtml(t.author || '—')}</span>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <span class="thread-blocks" onclick="showDetail('${escapeHtml(t.thread_id)}', '${escapeHtml(t.subject || '')}')" style="cursor:pointer">查看</span>
+        <span class="thread-blocks" onclick="confirmDelete(event, '${escapeHtml(t.thread_id)}', '${escapeHtml(t.subject || '')}')" style="cursor:pointer;color:#e53e3e">删除</span>
+      </div>
+    </div>
+  `).join('');
+  syncSelectAllState();
+}
+
+function changePage(delta) {
+  const next = currentPage + delta;
+  if (next < 1) return;
+  loadThreads(next);
+}
+
+async function manualSync() {
+  const btn = document.getElementById('syncBtn');
+  const useNonAnswerImages = document.getElementById('imgAsDiagramSwitch').checked;
+  btn.disabled = true;
+  btn.textContent = '同步中...';
+  showToast('开始同步，请稍候...');
+  try {
+    const resp = await fetch('/api/sync', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ use_non_answer_images_as_diagrams: useNonAnswerImages })
+    });
+    const data = await resp.json();
+    showToast(data.message || '同步已触发');
+    setTimeout(() => location.reload(), 2000);
+  } catch(e) {
+    showToast('同步失败：' + e.message);
+    btn.disabled = false;
+    btn.textContent = '立即同步';
+  }
+}
+
+async function saveImageMappingSetting() {
+  const enabled = document.getElementById('imgAsDiagramSwitch').checked;
+  try {
+    await fetch('/api/settings/image-mapping', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ use_non_answer_images_as_diagrams: enabled })
+    });
+  } catch (e) {
+    showToast('设置保存失败：' + e.message);
+  }
+}
+
+async function generateDoc() {
+  const start = document.getElementById('startDate').value;
+  const end = document.getElementById('endDate').value;
+  const sourceThreadIds = Array.from(document.querySelectorAll('.source-selector:checked')).map(el => el.dataset.threadId);
+  if (start && end && start > end) { showToast('开始日期不能晚于结束日期'); return; }
+  if (!sourceThreadIds.length) { showToast('请至少选择一个来源'); return; }
+
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.textContent = '生成中...';
+  showToast('正在生成文档...');
+
+  try {
+    const resp = await fetch('/api/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({start, end, source_thread_ids: sourceThreadIds})
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || '生成失败');
+    }
+    // 触发下载
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const disposition = resp.headers.get('Content-Disposition') || '';
+    const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    const plainMatch = disposition.match(/filename="?([^\";]+)"?/i);
+    const filename = decodeURIComponent((utf8Match && utf8Match[1]) || (plainMatch && plainMatch[1]) || '打卡题.docx');
+    a.download = filename;
+    a.click();
+    showToast('✅ 文档已生成，开始下载');
+  } catch(e) {
+    showToast('❌ ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '生成 Word 文档';
+  }
+}
+
+async function deleteSelectedSources() {
+  const ids = Array.from(document.querySelectorAll('.source-selector:checked')).map(el => el.dataset.threadId);
+  if (!ids.length) {
+    showToast('请先勾选要删除的来源');
+    return;
+  }
+  pendingBulkDeleteIds = ids;
+  document.getElementById('modalFooter').style.display = 'none';
+  document.getElementById('modalTitle').textContent = '确认批量删除';
+  document.getElementById('modalBody').innerHTML = `
+    <div style="text-align:center; padding: 24px;">
+      <div style="font-size:16px; margin-bottom:12px;">确定要删除已选中的 ${ids.length} 条来源吗？</div>
+      <div style="font-size:13px; color:#888;">删除后将不可恢复。</div>
+    </div>
+    <div style="text-align:right; margin-top:20px;">
+      <button class="btn btn-secondary" onclick="cancelBulkDelete()">取消</button>
+      <button class="btn btn-danger" onclick="executeBulkDelete()" style="margin-left:8px;">确认删除</button>
+    </div>
+  `;
+  document.getElementById('modalBg').classList.add('show');
+}
+
+function cancelBulkDelete() {
+  pendingBulkDeleteIds = [];
+  document.getElementById('modalBg').classList.remove('show');
+}
+
+async function executeBulkDelete() {
+  const ids = pendingBulkDeleteIds.slice();
+  if (!ids.length) {
+    document.getElementById('modalBg').classList.remove('show');
+    return;
+  }
+  pendingBulkDeleteIds = [];
+  document.getElementById('modalBg').classList.remove('show');
+  const btn = document.getElementById('bulkDeleteBtn');
+  btn.disabled = true;
+  btn.textContent = '删除中...';
+
+  let okCount = 0;
+  let failCount = 0;
+  for (const id of ids) {
+    try {
+      const resp = await fetch(`/api/thread/${id}`, { method: 'DELETE' });
+      if (resp.ok) okCount += 1;
+      else failCount += 1;
+    } catch (e) {
+      failCount += 1;
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = '删除选中';
+
+  if (okCount > 0) {
+    showToast(`已删除 ${okCount} 条` + (failCount ? `，失败 ${failCount} 条` : ''));
+    await loadThreads(currentPage);
+  } else {
+    showToast('删除失败，请重试');
+  }
+}
+
+async function showDetail(threadId, subject) {
+  document.getElementById('modalTitle').textContent = subject;
+  document.getElementById('modalBody').innerHTML = '<div style="color:#aaa;text-align:center;padding:20px">加载中...</div>';
+  document.getElementById('modalBg').classList.add('show');
+
+  const resp = await fetch(`/api/thread/${threadId}`);
+  const data = await resp.json();
+  
+  if (data.error) {
+      document.getElementById('modalBody').innerHTML = `<div style="color:red;text-align:center;padding:20px">${data.error}</div>`;
+      return;
+  }
+  
+  let html = '';
+  
+  // Render Source Info
+  html += `
+    <div style="background:#f9f9f9; padding:12px 16px; border-radius:8px; margin-bottom:20px; font-size:13px; color:#555;">
+      <div style="margin-bottom:4px; font-weight:bold; color:#333;">题目来源：</div>
+      <div>日期：${data.source.date}</div>
+      <div>发布人：${data.source.author || '未知'}</div>
+      <div>类型：${data.source.type}</div>
+      <div>标题：${data.source.title}</div>
+    </div>
+  `;
+
+  // Render Questions
+  if (data.questions && data.questions.length > 0) {
+      data.questions.forEach(q => {
+          html += `<div style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px dashed #eee;">`;
+          html += `<div style="font-weight:bold; margin-bottom:8px; color:#333; font-size: 15px;">第 ${q.seq} 题</div>`;
+          html += `<div class="block-text">${q.content.replace(/\n/g,'<br>')}</div>`;
+          
+          if (q.images && q.images.length > 0) {
+              html += `<div style="margin-top:12px; margin-bottom:8px; font-size:13px; color:#888;">配图：</div>`;
+              q.images.forEach(img => {
+                  const src = img.startsWith('http') ? img : '/images/' + img.split('/images/')[1];
+                  html += `<img class="block-img" src="${src}" onclick="copyImageToClipboard('${src}')" title="点击复制图片" style="cursor:pointer" onerror="this.style.display='none'">`;
+              });
+          }
+          
+          if (q.answers && q.answers.length > 0) {
+              html += `<div style="margin-top:16px; margin-bottom:8px; font-size:13px; color:#22a855; font-weight:bold;">解答：</div>`;
+              q.answers.forEach(img => {
+                  const src = img.startsWith('http') ? img : '/images/' + img.split('/images/')[1];
+                  html += `<img class="block-img" src="${src}" onclick="copyImageToClipboard('${src}')" title="点击复制解答" style="cursor:pointer; border: 2px solid #22a855; padding: 2px;" onerror="this.style.display='none'">`;
+              });
+          }
+          
+          html += `</div>`;
+      });
+  } else {
+      html += '<div style="color:#aaa;text-align:center">暂无内容</div>';
+  }
+
+  document.getElementById('modalFooter').style.display = 'block'; // 显示底部关闭按钮
+  document.getElementById('modalBody').innerHTML = html;
+}
+
+async function copyImageToClipboard(src) {
+    try {
+        const response = await fetch(src);
+        const blob = await response.blob();
+        
+        let itemBlob = blob;
+        // 如果不是 png，转换为 png
+        if (blob.type !== 'image/png') {
+            itemBlob = await convertToPng(blob);
+        }
+
+        const item = new ClipboardItem({ [itemBlob.type]: itemBlob });
+        await navigator.clipboard.write([item]);
+        showToast('图片已复制到剪贴板');
+    } catch (err) {
+        console.error('复制失败:', err);
+        showToast('复制失败: ' + err.message);
+    }
+}
+
+function convertToPng(blob) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(blob);
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            canvas.toBlob(pngBlob => {
+                URL.revokeObjectURL(url);
+                resolve(pngBlob);
+            }, 'image/png');
+        };
+        img.onerror = (e) => {
+            URL.revokeObjectURL(url);
+            reject(new Error('图片加载失败'));
+        };
+        img.src = url;
+    });
+}
+
+function closeModal(e) {
+  if (e.target.id === 'modalBg') document.getElementById('modalBg').classList.remove('show');
+}
+
+function confirmDelete(event, threadId, subject) {
+  event.stopPropagation();
+  
+  document.getElementById('modalFooter').style.display = 'none'; // 先隐藏默认的关闭按钮
+
+  document.getElementById('modalTitle').textContent = '确认删除';
+  document.getElementById('modalBody').innerHTML = `
+    <div style="text-align:center; padding: 24px;">
+      <div style="font-size:16px; margin-bottom:12px;">确定要删除 "${subject}" 吗？</div>
+      <div style="font-size:13px; color:#888;">删除后将不可恢复。</div>
+    </div>
+    <div style="text-align:right; margin-top:20px;">
+      <button class="btn btn-secondary" onclick="document.getElementById('modalBg').classList.remove('show')">取消</button>
+      <button class="btn btn-danger" onclick="executeDelete('${threadId}')" style="margin-left:8px;">确认删除</button>
+    </div>
+  `;
+  document.getElementById('modalBg').classList.add('show');
+}
+
+async function executeDelete(threadId) {
+  const btn = document.querySelector('.btn-danger');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '删除中...';
+  }
+  
+  try {
+    const resp = await fetch(`/api/thread/${threadId}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (resp.ok) {
+      showToast('已删除');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      showToast('删除失败：' + (data.error || '未知错误'));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '确认删除';
+      }
+    }
+  } catch (e) {
+    showToast('删除出错：' + e.message);
+    if (btn) {
+        btn.disabled = false;
+        btn.textContent = '确认删除';
+    }
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.style.display = 'none', 3000);
+}
+</script>
+</body>
+</html>
