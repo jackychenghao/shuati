@@ -130,11 +130,12 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                     if preprocess_images and seq > 0:
                         r = p.add_run(f"{seq}、")
                         r.font.size = Pt(12)
+                        r2 = p.add_run()
                         if image_to_insert != local:
                             # Tightly cropped images scale nicely to 1.2cm height
-                            r.add_picture(image_to_insert, height=Cm(1.2))
+                            r2.add_picture(image_to_insert, height=Cm(1.2))
                         else:
-                            r.add_picture(image_to_insert)
+                            r2.add_picture(image_to_insert)
                     else:
                         shape = p.add_run().add_picture(image_to_insert)
                         if shape.width > LARGE_IMAGE_TRIGGER_WIDTH or shape.height > LARGE_IMAGE_TRIGGER_HEIGHT:
