@@ -9,12 +9,35 @@ from docx.shared import Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from shuati.core.database import get_threads_by_date_range, get_questions_by_thread, get_blocks_by_thread
 from shuati.core.config import DATA_DIR
-from shuati.core.ocr_utils import analyze_image_text
 
 LARGE_IMAGE_TRIGGER_WIDTH = Cm(12)
 LARGE_IMAGE_TRIGGER_HEIGHT = Cm(10)
 EXPORT_IMAGE_MAX_WIDTH = Cm(10.5)
 EXPORT_IMAGE_MAX_HEIGHT = Cm(8.5)
+DIAGRAM_IMAGE_MAX_WIDTH = Cm(9.5)
+DIAGRAM_IMAGE_MAX_HEIGHT = Cm(5.8)
+
+
+def _downscale_to_max(shape, max_width, max_height):
+    ratio = min(float(max_width) / float(shape.width), float(max_height) / float(shape.height), 1.0)
+    if ratio < 1.0:
+        shape.width = int(float(shape.width) * ratio)
+        shape.height = int(float(shape.height) * ratio)
+
+
+def _extract_leading_seq(text: str) -> int | None:
+    s = str(text or "").lstrip("\u200b\u200c\u200d\ufeff\xa0 \t\r\n")
+    m = re.search(r"(\d+)[、\.\)]", s[:24])
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except Exception:
+        return None
+
+
+def _is_placeholder_only(content: str) -> bool:
+    return bool(re.match(r"^[\u200B-\u200D\uFEFF\s]*\d+[、\.\)]?\s*$", str(content or "")))
 
 
 def generate_word(start_date: str, end_date: str, output_path: str = None, source_thread_ids: list[str] | None = None, preprocess_images: bool = True) -> str:
@@ -46,8 +69,11 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
         blocks = get_blocks_by_thread(thread["thread_id"])
 
         image_marks = {}
+        seq_has_text = {}
         for q in questions:
             seq = q.get("seq", 0)
+            content = str(q.get("content") or "").strip()
+            seq_has_text[seq] = bool(content and not _is_placeholder_only(content))
             for img in json.loads(q.get("images") or "[]"):
                 if img:
                     key = os.path.normpath(os.path.abspath(img))
@@ -60,7 +86,6 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
 
         in_answer_section = False
         text_q_seen = 0
-        img_q_counter = 1
         
         for block in blocks:
             ctype = block.get("content_type")
@@ -70,8 +95,9 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                     if any(k in text for k in ["解答", "答案", "答：", "答:"]):
                         in_answer_section = True
                     first_line = next((s.strip() for s in text.splitlines() if s.strip()), "")
-                    if re.match(r"^\d+[、\.\)]", first_line):
-                        text_q_seen += 1
+                    first_seq = _extract_leading_seq(first_line)
+                    if first_seq:
+                        text_q_seen = max(text_q_seen, first_seq)
                         in_answer_section = False
                     p = doc.add_paragraph(text)
                     p.paragraph_format.space_after = Pt(6)
@@ -79,32 +105,18 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                 local = block.get("image_local")
                 key = os.path.normpath(os.path.abspath(local)) if local else ""
                 seq, mark = image_marks.get(key, (0, "图片"))
-                answer_by_mark = mark == "答案"
-                looks_like_question = False
-                answer_by_ocr = False
-                if local:
-                    meta = analyze_image_text(local)
-                    if isinstance(meta, dict) and (
-                        meta.get("is_answer")
-                        or any(k in str(meta.get("text_head") or "") for k in ["解答", "答案", "答：", "答:"])
-                        or any(k in str(meta.get("text_full") or "")[:80] for k in ["解答", "答案", "答：", "答:"])
-                    ):
-                        answer_by_ocr = True
-                    looks_like_question = bool(meta.get("looks_like_question")) if isinstance(meta, dict) else False
-                if answer_by_mark or answer_by_ocr:
-                    # 明确标记为答案图片（来自 questions.answers）或被 OCR 认定为答案，则跳过
-                    in_answer_section = True
+                if key not in image_marks:
                     continue
-                # 只要图片被标记为配图（或没有明确标记为答案），就显示
-                # 不再依赖 OCR 判断来跳过，因为 OCR 判断可能不准确
-                if in_answer_section and mark == "图片" and not looks_like_question:
-                    # 只有在答案区域内的未分类图片才跳过
+                answer_by_mark = mark == "答案"
+                if answer_by_mark:
+                    in_answer_section = True
                     continue
                 if local and os.path.exists(local):
                     image_to_insert = local
                     temp_files_to_clean = []
+                    is_diagram = mark == "配图"
                     
-                    if preprocess_images and seq > 0:
+                    if preprocess_images and seq > 0 and not is_diagram:
                         from PIL import Image, ImageChops
                         try:
                             im = Image.open(local).convert("RGB")
@@ -131,10 +143,10 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
 
                     p = doc.add_paragraph()
                     
-                    if preprocess_images and seq > 0 and text_q_seen == 0:
-                        r1 = p.add_run(f"{img_q_counter}、")
+                    if preprocess_images and seq > text_q_seen and not is_diagram:
+                        r1 = p.add_run(f"{seq}、")
                         r1.font.size = Pt(12)
-                        img_q_counter += 1
+                        text_q_seen = seq
                         
                         r2 = p.add_run()
                         if image_to_insert != local:
@@ -156,14 +168,18 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                         else:
                             r2.add_picture(image_to_insert)
                     else:
-                        shape = p.add_run().add_picture(image_to_insert)
-                        if shape.width > LARGE_IMAGE_TRIGGER_WIDTH or shape.height > LARGE_IMAGE_TRIGGER_HEIGHT:
-                            shape.width = int(shape.width * 0.5)
-                            shape.height = int(shape.height * 0.5)
-                        if shape.width > EXPORT_IMAGE_MAX_WIDTH or shape.height > EXPORT_IMAGE_MAX_HEIGHT:
-                            ratio = min(float(EXPORT_IMAGE_MAX_WIDTH) / float(shape.width), float(EXPORT_IMAGE_MAX_HEIGHT) / float(shape.height))
-                            shape.width = int(float(shape.width) * ratio)
-                            shape.height = int(float(shape.height) * ratio)
+                        if is_diagram:
+                            if seq > text_q_seen and not seq_has_text.get(seq, False):
+                                p.add_run(f"{seq}、")
+                                text_q_seen = seq
+                            shape = p.add_run().add_picture(image_to_insert)
+                            _downscale_to_max(shape, DIAGRAM_IMAGE_MAX_WIDTH, DIAGRAM_IMAGE_MAX_HEIGHT)
+                        else:
+                            shape = p.add_run().add_picture(image_to_insert)
+                            if shape.width > LARGE_IMAGE_TRIGGER_WIDTH or shape.height > LARGE_IMAGE_TRIGGER_HEIGHT:
+                                shape.width = int(shape.width * 0.5)
+                                shape.height = int(shape.height * 0.5)
+                            _downscale_to_max(shape, EXPORT_IMAGE_MAX_WIDTH, EXPORT_IMAGE_MAX_HEIGHT)
                             
                     for tf in temp_files_to_clean:
                         try:

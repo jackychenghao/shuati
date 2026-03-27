@@ -91,17 +91,17 @@ def _collect_content(blocks: list[dict], thread_id: str) -> tuple[str, list[dict
     all_text = ""
     all_images = []
 
-    for block in blocks:
+    for i, block in enumerate(blocks):
         if block["content_type"] == 11 and block.get("text"):
             all_text += block["text"] + "\n"
         elif block["content_type"] == 4 and block.get("image_url"):
             local = download_image(block["image_url"], thread_id)
             block["image_local"] = local
             if local:
-                all_images.append(local)
+                all_images.append((local, i))
 
     image_metas = []
-    for img in all_images:
+    for img, block_order in all_images:
         meta = analyze_image_text(img)
         if not isinstance(meta, dict):
             meta = {
@@ -111,7 +111,8 @@ def _collect_content(blocks: list[dict], thread_id: str) -> tuple[str, list[dict
                 "text_head": "",
                 "text_full": "",
             }
-        image_metas.append({"path": img, "meta": meta})
+        # 目的：把原始块顺序传给解析器，支持稳定题图归类。
+        image_metas.append({"path": img, "meta": meta, "block_order": block_order})
 
     return all_text, image_metas
 
