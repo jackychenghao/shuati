@@ -108,6 +108,7 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                     temp_files_to_clean = []
                     is_diagram = mark == "配图"
                     
+                    cropped_dims = None
                     if preprocess_images and seq > 0 and not is_diagram:
                         try:
                             im = Image.open(local).convert("RGB")
@@ -124,6 +125,7 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                                     min(im.height, bbox[3] + padding)
                                 )
                                 cropped = im.crop(padded_bbox)
+                                cropped_dims = (cropped.width, cropped.height)
                                 tf = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
                                 cropped.save(tf.name)
                                 temp_files_to_clean.append(tf.name)
@@ -132,27 +134,25 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                             print(f"[Doc] 图片裁剪失败 {local}: {e}")
 
                     p = doc.add_paragraph()
-                    
+
                     if preprocess_images and seq > text_q_seen and not is_diagram:
                         r1 = p.add_run(f"{seq}、")
                         r1.font.size = Pt(12)
                         text_q_seen = seq
-                        
+
                         r2 = p.add_run()
                         if image_to_insert != local:
-                            # Tightly cropped images scale nicely to 1.2cm height
                             cm_height = 1.2
-                            try:
-                                with Image.open(image_to_insert) as check_im:
-                                    cm_width = 1.2 * check_im.width / check_im.height
-                            except Exception:
+                            if cropped_dims:
+                                cm_width = 1.2 * cropped_dims[0] / cropped_dims[1]
+                            else:
                                 cm_width = 14.0
-                                
+
                             max_cm_width = 14.0
                             if cm_width > max_cm_width:
                                 cm_height = cm_height * (max_cm_width / cm_width)
                                 cm_width = max_cm_width
-                                
+
                             r2.add_picture(image_to_insert, width=Cm(cm_width), height=Cm(cm_height))
                         else:
                             r2.add_picture(image_to_insert)
