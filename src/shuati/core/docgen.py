@@ -9,6 +9,9 @@ from docx.shared import Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from shuati.core.database import get_threads_by_date_range, get_questions_by_thread, get_blocks_by_thread
 from shuati.core.config import DATA_DIR
+from shuati.core.question_parser import _extract_leading_seq
+from PIL import Image, ImageChops
+import tempfile
 
 LARGE_IMAGE_TRIGGER_WIDTH = Cm(12)
 LARGE_IMAGE_TRIGGER_HEIGHT = Cm(10)
@@ -23,17 +26,6 @@ def _downscale_to_max(shape, max_width, max_height):
     if ratio < 1.0:
         shape.width = int(float(shape.width) * ratio)
         shape.height = int(float(shape.height) * ratio)
-
-
-def _extract_leading_seq(text: str) -> int | None:
-    s = str(text or "").lstrip("\u200b\u200c\u200d\ufeff\xa0 \t\r\n")
-    m = re.search(r"(\d+)[、\.\)]", s[:24])
-    if not m:
-        return None
-    try:
-        return int(m.group(1))
-    except Exception:
-        return None
 
 
 def _is_placeholder_only(content: str) -> bool:
@@ -117,7 +109,6 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                     is_diagram = mark == "配图"
                     
                     if preprocess_images and seq > 0 and not is_diagram:
-                        from PIL import Image, ImageChops
                         try:
                             im = Image.open(local).convert("RGB")
                             bg = Image.new(im.mode, im.size, (255, 255, 255))
@@ -133,7 +124,6 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                                     min(im.height, bbox[3] + padding)
                                 )
                                 cropped = im.crop(padded_bbox)
-                                import tempfile
                                 tf = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
                                 cropped.save(tf.name)
                                 temp_files_to_clean.append(tf.name)
@@ -153,10 +143,9 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                             # Tightly cropped images scale nicely to 1.2cm height
                             cm_height = 1.2
                             try:
-                                from PIL import Image
                                 with Image.open(image_to_insert) as check_im:
                                     cm_width = 1.2 * check_im.width / check_im.height
-                            except:
+                            except Exception:
                                 cm_width = 14.0
                                 
                             max_cm_width = 14.0
@@ -176,9 +165,6 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                             _downscale_to_max(shape, DIAGRAM_IMAGE_MAX_WIDTH, DIAGRAM_IMAGE_MAX_HEIGHT)
                         else:
                             shape = p.add_run().add_picture(image_to_insert)
-                            if shape.width > LARGE_IMAGE_TRIGGER_WIDTH or shape.height > LARGE_IMAGE_TRIGGER_HEIGHT:
-                                shape.width = int(shape.width * 0.5)
-                                shape.height = int(shape.height * 0.5)
                             _downscale_to_max(shape, EXPORT_IMAGE_MAX_WIDTH, EXPORT_IMAGE_MAX_HEIGHT)
                             
                     for tf in temp_files_to_clean:
