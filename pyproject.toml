@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "shuati-agent"
+name = "shuati"
 version = "1.0.0"
 description = "CLI + Web tool for collecting daily check-in questions from Jielong Manager"
 readme = "README.md"

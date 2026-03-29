@@ -23,7 +23,7 @@ BASE_HEADERS = {
 
 # Flask
 FLASK_PORT = 8080
-FLASK_SECRET = "math-collector-secret-2026"
+FLASK_SECRET = os.environ.get("FLASK_SECRET", "math-collector-secret-2026")
 
 # 定时采集（24小时制，每天几点跑）
 SYNC_HOUR = 7

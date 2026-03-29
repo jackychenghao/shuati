@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`shuati-agent` collects daily check-in questions (打卡题) from the 接龙管家 platform via WeChat login, stores them in SQLite, and generates printable Word/PDF documents.
+`shuati` collects daily check-in questions (打卡题) from the 接龙管家 platform via WeChat login, stores them in SQLite, and generates printable Word/PDF documents.
 
 ## Installation
 
