@@ -100,7 +100,7 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                 if key not in image_marks:
                     continue
                 answer_by_mark = mark == "答案"
-                if answer_by_mark:
+                if answer_by_mark or in_answer_section:
                     in_answer_section = True
                     continue
                 if local and os.path.exists(local):
@@ -136,26 +136,32 @@ def generate_word(start_date: str, end_date: str, output_path: str = None, sourc
                     p = doc.add_paragraph()
 
                     if preprocess_images and seq > text_q_seen and not is_diagram:
-                        r1 = p.add_run(f"{seq}、")
-                        r1.font.size = Pt(12)
+                        # 序号单独一行，与文字题保持一致
+                        p.add_run(f"{seq}、")
                         text_q_seen = seq
+                        p.paragraph_format.space_after = Pt(2)
 
-                        r2 = p.add_run()
-                        if image_to_insert != local:
-                            cm_height = 1.2
-                            if cropped_dims:
-                                cm_width = 1.2 * cropped_dims[0] / cropped_dims[1]
-                            else:
+                        p2 = doc.add_paragraph()
+                        p2.paragraph_format.space_after = Pt(6)
+                        r2 = p2.add_run()
+                        if image_to_insert != local and cropped_dims:
+                            # 宽度优先缩放：目标满行宽 14cm，按比例算高，限制高度 2.5~6cm
+                            aspect = cropped_dims[0] / cropped_dims[1]
+                            cm_width = 14.0
+                            cm_height = cm_width / aspect
+                            if cm_height > 6.0:
+                                cm_height = 6.0
+                                cm_width = cm_height * aspect
+                            if cm_height < 2.5:
+                                cm_height = 2.5
+                                cm_width = cm_height * aspect
+                            if cm_width > 14.0:
                                 cm_width = 14.0
-
-                            max_cm_width = 14.0
-                            if cm_width > max_cm_width:
-                                cm_height = cm_height * (max_cm_width / cm_width)
-                                cm_width = max_cm_width
-
+                                cm_height = cm_width / aspect
                             r2.add_picture(image_to_insert, width=Cm(cm_width), height=Cm(cm_height))
                         else:
-                            r2.add_picture(image_to_insert)
+                            shape = r2.add_picture(image_to_insert)
+                            _downscale_to_max(shape, EXPORT_IMAGE_MAX_WIDTH, EXPORT_IMAGE_MAX_HEIGHT)
                     else:
                         if is_diagram:
                             if seq > text_q_seen and not seq_has_text.get(seq, False):

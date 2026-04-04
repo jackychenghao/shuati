@@ -200,6 +200,13 @@ def _run_playwright_login():
             except Exception as e:
                 print(f"[Auth] 页面加载警告（不影响登录）：{e}")
 
+            # 清除持久化 profile 中残留的旧 token，防止被误判为新登录
+            try:
+                page.evaluate("() => { localStorage.removeItem('token'); sessionStorage.removeItem('token'); }")
+                print("[Auth] 已清除本地缓存 token，等待新登录...")
+            except Exception:
+                pass
+
             # ── 轮询检测登录成功 ──────────────────────────────
             # 接龙管家登录后写入 localStorage['token']
             max_wait = 300
